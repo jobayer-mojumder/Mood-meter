@@ -1,0 +1,427 @@
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Face tracker</title>
+		<meta charset="utf-8">
+		<link href="css/bootstrap.min.css" rel="stylesheet" type="text/css">
+		<script src="js/jquery.js"></script>
+		<script src="js/utils.js"></script>
+		<script src="js/clmtrackr.js"></script>
+		<script src="js/model_pca_20_svm_emotionDetection.js"></script>
+		<script src="js/Stats.js"></script>
+		<script src="js/d3.min.js"></script>
+		<script src="js/emotion_classifier.js"></script>
+		<script src="js/emotionmodel.js"></script>
+		<style>
+			@import url(https://fonts.googleapis.com/css?family=Lato:300italic,700italic,300,700);
+			
+			body {
+				font-family: 'Lato';
+				background-color: black;
+				border: 2px dashed #1f90ba; 
+			}
+			
+			#overlay {
+				position: absolute;
+				top: 0px;
+				left: 0px;
+				-o-transform : scaleX(-1);
+				-webkit-transform : scaleX(-1);
+				transform : scaleX(-1);
+				-ms-filter : fliph; /*IE*/
+				filter : fliph; /*IE*/
+				
+				width : 103%;
+				height : 103%;
+			}
+
+			#videoel {
+				-o-transform : scaleX(-1);
+				-webkit-transform : scaleX(-1);
+				transform : scaleX(-1);
+				-ms-filter : fliph; /*IE*/
+				filter : fliph; /*IE*/
+				padding-top: 20px;
+				width : 100%;
+				height : 100%;
+			}
+			
+			#container {
+				padding-left: 5px;
+				padding-right: 5px;
+				background-color: #1f90ba;
+				margin-top: -10%;
+				margin-left: 5%;
+				position : relative;
+				width : 25%;
+				/*margin : 0px auto;*/
+			}
+			
+			#content {
+				background-color: black;
+				margin-top : 12%;
+				max-width: 100%;
+				height: 400px;
+			}
+			
+			#sketch, #filter {
+				display: none;
+			}
+			
+			h2 {
+				font-weight : 300;
+			}
+			
+			.btn {
+				font-family: 'Lato';
+				font-size: 16px;
+			}
+
+			#controls {
+				width:25%;
+				margin-left: 5%;
+				margin-top: 20px;
+				text-align: center;
+			}
+
+			#gif {
+				padding: 5px;
+				background-color: black;
+				margin-top: -275px;
+				margin-left: 35%;
+				width: 25%;
+				height: 265px;
+			}
+			#gif2 {
+				margin-top: -278px;
+				margin-left: 65%;
+				width: 25%;
+				height: 265px;
+
+			}
+			#emotion_container {
+				display: none;
+				margin-top: -14%;
+				margin-left: 65%;
+				width: 350px;
+			}
+			#heading{
+				height: 150px;
+				width: 100%;
+				background-color: black;
+
+			}
+
+			#emotion_icons {
+				height: 80px;
+				
+			}
+
+			.emotion_icon {
+				width : 40px;
+				height : 40px;
+				margin-top: 5px;
+				/*margin-left : 13px;*/
+				margin-left : 10%;
+			}
+
+			#emotion_chart, #emotion_icons {
+				
+				width : 100%;
+			}
+
+			#icon1, #icon2, #icon3, #icon4, #icon5, #icon6 {
+				visibility : hidden;
+			}
+
+			/* d3 */
+			.bar {
+				fill : steelblue;
+				fill-opacity : .9;
+			}
+
+		</style>
+		<script>
+			// getUserMedia only works over https in Chrome 47+, so we redirect to https. Also notify user if running from file.
+			if (window.location.protocol == "file:") {
+				alert("You seem to be running this example directly from a file. Note that these examples only work when served from a server or localhost due to canvas cross-domain restrictions.");
+			} else if (window.location.hostname !== "localhost" && window.location.protocol !== "https:"){
+				window.location.protocol = "https";
+			}
+		</script>
+		<script type="text/javascript">
+
+			var _gaq = _gaq || [];
+			_gaq.push(['_setAccount', 'UA-32642923-1']);
+			_gaq.push(['_trackPageview']);
+
+			(function() {
+				var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+				ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+				var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+			})();
+
+		</script>
+
+
+	</head>
+	<body>
+		<div id='heading'>
+			<img src="resource/logo2.png" height="80%" style="margin-left: 8%; margin-top: 10px;">
+			<img src="resource/bg2.gif" width="60%" height="80%" style="margin-left: 2%;">
+			<img src="resource/cbllogo.png"  height="80%" >
+		</div>
+		<div id="content" class="col-sm-12">
+			<div id="container">
+				<video id="videoel" width="400" height="300" preload="auto" loop>
+				</video>
+				<canvas id="overlay" width="400" height="300"></canvas>
+			</div>
+			<canvas id="sketch" width="400" height="300"></canvas>
+			<div id="emotion_container" >
+				<div id="emotion_icons">
+					<img class="emotion_icon" id="icon1" src="media/icon_angry.png">
+					<img class="emotion_icon" id="icon2" src="media/icon_sad.png">
+					<img class="emotion_icon" id="icon3" src="media/surprise.gif">
+					<img class="emotion_icon" id="icon4" src="media/icon_happy.png">
+				</div>
+				<div id='emotion_chart'></div>
+			</div>
+			<div id="gif">
+				<img id="showLoad" src="resource/advert1.gif" alt="Scan" style=" width: 100%; height: 100%;">
+			</div>
+			<div id="gif2">
+				<img id="showLoad2" src="resource/bg1.gif" alt="Scan" style=" width: 100%; height: 100%;">
+			</div>
+			<div id="controls">
+				<button  onclick="startVideo()" id="startbutton" style="background-color: #1f90ba; border: 2px solid; width: 100px; height: 25px; color: white; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; cursor: pointer;">Reset</button>
+				<button  onclick="stopVideo()" id="stopbutton" style="background-color: #1f90ba; border: 2px solid; width: 150px; height: 25px; margin-left: 10px; color: white;  text-align: center; text-decoration: none; display: inline-block; font-size: 16px; cursor: pointer;">View Result</button>
+			</div>
+
+			</div>
+			<div >
+				<img src="resource/bg2.gif" width="70%" height="80px" style="margin-left: 10%;margin-top: -35%;">
+			</div>
+			<script>
+			
+				welcomeAudio = new Audio('resource/welcome_cbl.wav'); 
+				welcomeAudio.addEventListener('ended', function() {
+					this.currentTime = 0;
+					this.play();
+				}, false);
+				welcomeAudio.play();
+				test = new Audio('resource/sound1.mp3'); 
+
+				thank = new Audio('resource/calculating_sound.wav'); 
+				thank.loop= false;
+				pop = new Audio('resource/thankyou.mp3'); 
+				pop.loop = false;
+			//start button audio
+
+				startAudio = new Audio('resource/startAudio.mp3'); 
+				startAudio.addEventListener('ended', function() {
+					this.currentTime = 0;
+					this.play();
+				}, false);
+				
+				var vid = document.getElementById('videoel');
+				var overlay = document.getElementById('overlay');
+				var overlayCC = overlay.getContext('2d');
+				
+				/********** check and set up video/webcam **********/
+
+				function enablestart() {
+					var startbutton = document.getElementById('startbutton');
+					startbutton.value = "start";
+					startbutton.disabled = null;
+				}
+
+				navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+				window.URL = window.URL || window.webkitURL || window.msURL || window.mozURL;
+
+				// check for camerasupport
+				if (navigator.getUserMedia) {
+					// set up stream
+					
+					var videoSelector = {video : true};
+					if (window.navigator.appVersion.match(/Chrome\/(.*?) /)) {
+						var chromeVersion = parseInt(window.navigator.appVersion.match(/Chrome\/(\d+)\./)[1], 10);
+						if (chromeVersion < 20) {
+							videoSelector = "video";
+						}
+					};
+				
+					navigator.getUserMedia(videoSelector, function( stream ) {
+						if (vid.mozCaptureStream) {
+							vid.mozSrcObject = stream;
+						} else {
+							vid.src = (window.URL && window.URL.createObjectURL(stream)) || stream;
+						}
+						vid.play();
+					}, function() {
+						//insertAltVideo(vid);
+						alert("There was some problem trying to fetch video from your webcam. If you have a webcam, please make sure to accept when the browser asks for access to your webcam.");
+					});
+				} else {
+					//insertAltVideo(vid);
+					alert("This demo depends on getUserMedia, which your browser does not seem to support. :(");
+				}
+
+				vid.addEventListener('canplay', enablestart, false);
+				
+				/*********** setup of emotion detection *************/
+
+				var ctrack = new clm.tracker({useWebGL : true});
+				ctrack.init(pModel);
+
+				function startVideo() {
+					test.pause();
+					pop.pause();
+					document.getElementById('emotion_container').style.display = "none";
+					document.getElementById('gif2').style.display = "block";
+					document.getElementById("showLoad").src="resource/advert1.gif";
+					document.getElementById('gif').style.display = "block";
+					// start video
+					welcomeAudio.pause();
+					startAudio.play();
+					vid.play();
+					ctrack.start(vid);
+					// start loop to draw face
+					drawLoop();
+				}
+				
+				function stopVideo() {
+					// start video
+					welcomeAudio.pause();
+					vid.pause();
+					document.getElementById("showLoad").src="resource/advert.gif";
+					startAudio.pause();
+					thank.play();
+					document.getElementById("showLoad").src="resource/facescan.gif";
+				    //document.getElementById('emotion_container').style.display = "block";
+					document.getElementById('showLoad2').src = "resource/loading.gif";
+					
+					setTimeout( function() {
+						document.getElementById('gif2').style.display = "none";
+						document.getElementById('emotion_container').style.display = "block";
+						
+						test.play();
+				    }, 8000 );
+				    
+					setTimeout( function() {
+						pop.play();
+					    document.getElementById("showLoad").src="resource/pic.jpg";
+				    }, 15000 );
+				    setTimeout( function() {						
+						test.play();
+						//location.reload(true);
+						document.getElementById('showLoad2').src = "resource/bg1.gif";
+				    }, 19500 );
+				}
+
+				
+				function drawLoop() {
+					requestAnimFrame(drawLoop);
+					overlayCC.clearRect(0, 0, 400, 300);
+					//psrElement.innerHTML = "score :" + ctrack.getScore().toFixed(4);
+					if (ctrack.getCurrentPosition()) {
+						ctrack.draw(overlay);
+
+					}
+					var cp = ctrack.getCurrentParameters();
+					
+					var er = ec.meanPredict(cp);
+					if (er) {
+						updateData(er);
+						for (var i = 0;i < er.length;i++) {
+							if (er[i].value > 0.4) {
+								document.getElementById('icon'+(i+1)).style.visibility = 'visible';
+							} else {
+								document.getElementById('icon'+(i+1)).style.visibility = 'hidden';
+							}
+						}
+					}
+				}
+				
+				var ec = new emotionClassifier();
+				ec.init(emotionModel);
+				var emotionData = ec.getBlank();	
+				
+				/************ d3 code for barchart *****************/
+
+				var margin = {top : 10, right : 20, bottom : 10, left : 40},
+					width = 400 - margin.left - margin.right,
+					height = 100 - margin.top - margin.bottom;
+
+				var barWidth = 40;
+
+				var formatPercent = d3.format(".0%");
+				
+				var x = d3.scale.linear()
+					.domain([0, ec.getEmotions().length]).range([margin.left, width+margin.left]);
+
+				var y = d3.scale.linear()
+					.domain([0,1]).range([0, height]);
+
+				var svg = d3.select("#emotion_chart").append("svg")
+					.attr("width", width + margin.left + margin.right)
+					.attr("height", height + margin.top + margin.bottom)
+				
+				svg.selectAll("rect").
+				  data(emotionData).
+				  enter().
+				  append("svg:rect").
+				  attr("x", function(datum, index) { return x(index); }).
+				  attr("y", function(datum) { return height - y(datum.value); }).
+				  attr("height", function(datum) { return y(datum.value); }).
+				  attr("width", barWidth).
+				  attr("fill", "yellow");
+				
+				svg.selectAll("text.yAxis").
+				  data(emotionData).
+				  enter().append("svg:text").
+				  attr("x", function(datum, index) { return x(index) + barWidth; }).
+				  attr("y", height).
+				  attr("dx", -barWidth/2).
+				  attr("text-anchor", "middle").
+				  attr("style", "font-size: 20").
+				  attr("fill", "white").
+				  ///////////
+				  text(function(datum) { return datum.emotion;}).
+				  attr("transform", "translate(0, 18)").
+				  attr("class", "yAxis");
+
+				function updateData(data) {
+					// update
+					var rects = svg.selectAll("rect")
+						.data(data)
+						.attr("y", function(datum) { return height - y(datum.value); })
+						.attr("height", function(datum) { return y(datum.value); });
+					var texts = svg.selectAll("text.labels")
+						.data(data)
+						.attr("y", function(datum) { return height - y(datum.value); })
+						.text(function(datum) { return datum.value.toFixed(1);});
+
+					// enter 
+					rects.enter().append("svg:rect");
+					texts.enter().append("svg:text");
+
+					// exit
+					rects.exit().remove();
+					texts.exit().remove();
+				}
+
+				stats = new Stats();
+				stats.domElement.style.position = 'absolute';
+				stats.domElement.style.top = '0px';
+				//document.getElementById('container').appendChild( stats.domElement );
+
+
+				document.addEventListener('clmtrackrIteration', function(event) {
+					stats.update();
+				}, false);
+				
+			</script>
+	</body>
+</html>
